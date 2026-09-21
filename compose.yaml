@@ -1,0 +1,41 @@
+name: analytics-dashboard
+
+services:
+  metabase:
+    build:
+      context: .
+      dockerfile: metabase/Dockerfile
+      args:
+        METABASE_VERSION: 0.63.18
+        METABASE_DUCKDB_DRIVER_VERSION: 1.5.5.0
+
+    image: analytics-dashboard-metabase:0.63.18-duckdb1.5.5
+    container_name: analytics-dashboard-metabase
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      JAVA_TIMEZONE: Europe/Rome
+      MB_DB_FILE: /home/metabase/state/metabase.db
+
+    volumes:
+      - ./data/database:/home/metabase/data:ro
+      - metabase_state:/home/metabase/state
+
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - http://localhost:3000/api/health
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+    restart: unless-stopped
+
+volumes:
+  metabase_state:

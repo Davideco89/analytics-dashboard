@@ -1,0 +1,45 @@
+# Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Generated data and DuckDB files
+data/raw/*
+!data/raw/.gitkeep
+data/database/*
+!data/database/.gitkeep
+data/backups/*
+!data/backups/.gitkeep
+*.duckdb
+*.duckdb.wal
+
+# dbt generated artifacts
+target/
+logs/
+dbt_packages/
+
+# Great Expectations generated state
+gx/uncommitted/
+
+# Metabase local state and downloaded drivers
+metabase-data/
+metabase/plugins/*.jar
+
+# Runtime logs
+*.log
+
+# Editors and operating systems
+.vscode/
+.DS_Store
+Thumbs.db
+# dbt local user metadata
+.user.yml

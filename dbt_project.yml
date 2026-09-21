@@ -1,0 +1,23 @@
+name: "analytics_dashboard"
+version: "1.0.0"
+config-version: 2
+
+profile: "analytics_dashboard"
+require-dbt-version: ">=1.12.0,<1.13.0"
+
+model-paths: ["models"]
+test-paths: ["tests/dbt"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  analytics_dashboard:
+    staging:
+      +materialized: view
+      +schema: staging
+
+    marts:
+      +materialized: table
+      +schema: marts

@@ -1,0 +1,9 @@
+analytics_dashboard:
+  target: dev
+
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', 'data/database/analytics.duckdb') }}"
+      schema: dev
+      threads: 4
