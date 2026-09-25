@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: dim_complaint_type
+    description: Distinct complaint types used to classify NYC 311 requests.
+    columns:
+      - name: complaint_type_key
+        description: Stable hash key generated from the complaint type.
+        data_tests:
+          - not_null
+          - unique
+
+      - name: complaint_type
+        description: Business-readable complaint category.
+        data_tests:
+          - not_null
+          - unique
+
+  - name: fct_requests
+    description: Request-level fact table for NYC 311 analytical reporting.
+    columns:
+      - name: request_id
+        description: Unique identifier for the service request.
+        data_tests:
+          - not_null
+          - unique
+
+      - name: complaint_type_key
+        description: Reference to the complaint type dimension.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_complaint_type')
+                field: complaint_type_key
+
+      - name: created_at
+        description: Timestamp when the request was created.
+        data_tests:
+          - not_null
+
+      - name: request_count
+        description: Additive measure with a value of one for each request.
+        data_tests:
+          - not_null

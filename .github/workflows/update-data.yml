@@ -1,0 +1,120 @@
+name: Refresh analytics data
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every Sunday at 04:00 UTC.
+    - cron: "0 4 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analytics-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Build and validate analytics database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NYC_311_API_URL: https://data.cityofnewyork.us/resource/erm2-nwe9.json
+      NYC_311_START_DATE: "2026-08-01T00:00:00"
+      NYC_311_END_DATE: "2026-08-08T00:00:00"
+      NYC_311_PAGE_SIZE: "10000"
+      NYC_311_MIN_ROWS: "50000"
+      NYC_311_MAX_ROWS: "100000"
+      SODA_APP_TOKEN: ${{ secrets.SODA_APP_TOKEN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run analytics refresh
+        run: python scripts/update_data.py
+
+      - name: Add refresh summary
+        if: success()
+        run: |
+          python - <<'PY'
+          import duckdb
+          import os
+
+          connection = duckdb.connect(
+              "data/database/analytics.duckdb",
+              read_only=True,
+          )
+
+          result = connection.execute(
+              """
+              SELECT
+                  count(*) AS total_requests,
+                  count(*) FILTER (
+                      WHERE has_valid_resolution
+                  ) AS valid_resolutions,
+                  round(
+                      avg(resolution_hours) FILTER (
+                          WHERE has_valid_resolution
+                      ) / 24.0,
+                      2
+                  ) AS avg_resolution_days
+              FROM dev_marts.fct_requests
+              """
+          ).fetchone()
+
+          connection.close()
+
+          total, valid, average = result
+
+          summary_path = os.environ["GITHUB_STEP_SUMMARY"]
+
+          with open(summary_path, "a", encoding="utf-8") as summary:
+              summary.write("## Analytics refresh completed\n\n")
+              summary.write(f"- Total requests: {total:,}\n")
+              summary.write(f"- Valid resolutions: {valid:,}\n")
+              summary.write(
+                  f"- Average resolution days: {average}\n"
+              )
+          PY
+
+      - name: Upload analytics artifacts
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: analytics-refresh-${{ github.run_number }}
+          path: |
+            data/raw/nyc_311.csv
+            data/database/analytics.duckdb
+            target/manifest.json
+            target/run_results.json
+            logs/dbt.log
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: analytics-refresh-failure-${{ github.run_number }}
+          path: |
+            target/
+            logs/
+          if-no-files-found: warn
+          retention-days: 7

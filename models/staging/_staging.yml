@@ -1,0 +1,35 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw data loaded from the NYC 311 Open Data API.
+    schema: raw
+    tables:
+      - name: nyc_311
+        description: Raw NYC 311 service requests for the configured extraction window.
+        columns:
+          - name: unique_key
+            description: Source system identifier for the service request.
+            data_tests:
+              - not_null
+              - unique
+
+models:
+  - name: stg_nyc_311
+    description: Cleaned and typed NYC 311 service requests.
+    columns:
+      - name: request_id
+        description: Unique identifier for the service request.
+        data_tests:
+          - not_null
+          - unique
+
+      - name: created_at
+        description: Timestamp when the service request was created.
+        data_tests:
+          - not_null
+
+      - name: complaint_type
+        description: Standardized complaint category.
+        data_tests:
+          - not_null
