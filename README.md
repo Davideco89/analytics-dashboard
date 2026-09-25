@@ -88,10 +88,8 @@ Run these commands from the repository root. On **Windows PowerShell**:
 ```powershell
 git clone https://github.com/Davideco89/analytics-dashboard.git
 cd analytics-dashboard
-py -3.13 -m venv .venv
+.\setup.bat
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
 docker compose build metabase
 python scripts/update_data.py
 docker compose up -d --wait metabase
@@ -102,14 +100,14 @@ On **macOS or Linux**, with `python3.13` available:
 ```bash
 git clone https://github.com/Davideco89/analytics-dashboard.git
 cd analytics-dashboard
-python3.13 -m venv .venv
+./setup.sh
 source .venv/bin/activate
-python -m pip install -r requirements.txt
-cp .env.example .env
 docker compose build metabase
 python scripts/update_data.py
 docker compose up -d --wait metabase
 ```
+
+Both setup scripts create `.venv`, copy `.env.example` to `.env` only if needed, install dependencies, run the environment and offline Python tests, and check the Compose configuration. They do not download NYC data, build the Metabase image or start a container; the remaining commands do those jobs explicitly. An existing virtual environment with a Python version other than 3.13 causes setup to stop rather than replacing it.
 
 Open [http://localhost:3000](http://localhost:3000) and add a DuckDB database with file path `/home/metabase/data/analytics.duckdb`. Compose mounts the analytical database directory read-only inside Metabase and exposes port 3000 only on localhost. Saved Metabase configuration uses a separate Docker volume; do not remove that volume when stopping the project.
 
