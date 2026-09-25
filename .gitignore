@@ -21,6 +21,7 @@ data/backups/*
 !data/backups/.gitkeep
 *.duckdb
 *.duckdb.wal
+*.duckdb.restore
 
 # dbt generated artifacts
 target/

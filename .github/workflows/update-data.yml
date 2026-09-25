@@ -26,6 +26,7 @@ jobs:
       NYC_311_PAGE_SIZE: "10000"
       NYC_311_MIN_ROWS: "50000"
       NYC_311_MAX_ROWS: "100000"
+      METABASE_MODE: headless
       SODA_APP_TOKEN: ${{ secrets.SODA_APP_TOKEN }}
 
     steps:
@@ -45,6 +46,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+
+      - name: Run offline refresh tests
+        run: python -m unittest discover -s tests/python -v
 
       - name: Run analytics refresh
         run: python scripts/update_data.py

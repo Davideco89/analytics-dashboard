@@ -5,29 +5,75 @@ import os
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+
 import duckdb
+from dotenv import load_dotenv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(PROJECT_ROOT / ".env")
 
-RAW_PATH = PROJECT_ROOT / "data" / "raw" / "nyc_311.csv"
-DATABASE_PATH = PROJECT_ROOT / "data" / "database" / "analytics.duckdb"
+DEFAULT_DATABASE_PATH = PROJECT_ROOT / "data" / "database" / "analytics.duckdb"
+
+
+def configured_path(name: str, default: str) -> Path:
+    """Resolve configuration relative to the project, not the caller's cwd."""
+
+    path = Path(os.getenv(name, default)).expanduser()
+    return (path if path.is_absolute() else PROJECT_ROOT / path).resolve()
+
+
+RAW_PATH = configured_path("NYC_311_RAW_PATH", "data/raw/nyc_311.csv")
+DATABASE_PATH = configured_path("DUCKDB_PATH", "data/database/analytics.duckdb")
 BACKUP_DIRECTORY = PROJECT_ROOT / "data" / "backups"
 
-STAGED_RAW_PATH = (
-    PROJECT_ROOT / "data" / "raw" / "nyc_311_next.csv"
-)
-STAGED_DATABASE_PATH = (
-    PROJECT_ROOT
-    / "data"
-    / "database"
-    / "staging"
-    / "analytics.duckdb"
-)
+STAGED_RAW_PATH = RAW_PATH.with_name(f"{RAW_PATH.stem}_next{RAW_PATH.suffix}")
+STAGED_DATABASE_PATH = DATABASE_PATH.parent / "staging" / DATABASE_PATH.name
+LOCK_PATH = PROJECT_ROOT / "data" / "database" / ".refresh.lock"
+METABASE_MODE = os.getenv("METABASE_MODE", "auto").lower()
 
 METABASE_SERVICE = "metabase"
+
+
+@contextmanager
+def exclusive_refresh_lock():
+    """Prevent a second local process from deleting active staging files."""
+
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LOCK_PATH.open("a+b") as lock_file:
+        lock_file.seek(0, os.SEEK_END)
+        if lock_file.tell() == 0:
+            lock_file.seek(0)
+            lock_file.write(b"\0")
+            lock_file.flush()
+        lock_file.seek(0)
+
+        if os.name == "nt":
+            import msvcrt
+
+            try:
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise RuntimeError("Another analytics refresh is running.") from exc
+        else:
+            import fcntl
+
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError("Another analytics refresh is running.") from exc
+
+        try:
+            yield
+        finally:
+            lock_file.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def run_command(
@@ -71,8 +117,20 @@ def clean_staging_files() -> None:
 def is_metabase_running() -> bool:
     """Return whether the Metabase Compose service is currently running."""
 
-    if shutil.which("docker") is None:
+    if METABASE_MODE == "headless":
         return False
+    if METABASE_MODE != "auto":
+        raise ValueError("METABASE_MODE must be 'auto' or 'headless'.")
+    if DATABASE_PATH != DEFAULT_DATABASE_PATH:
+        raise RuntimeError(
+            "The local Metabase connection uses data/database/analytics.duckdb. "
+            "Use the default DUCKDB_PATH or set METABASE_MODE=headless."
+        )
+    if shutil.which("docker") is None:
+        raise RuntimeError(
+            "Docker is unavailable; set METABASE_MODE=headless only when "
+            "no local Metabase instance needs to be managed."
+        )
 
     try:
         result = subprocess.run(
@@ -89,12 +147,10 @@ def is_metabase_running() -> bool:
             text=True,
             check=True,
         )
-    except subprocess.CalledProcessError:
-        logging.warning(
-            "Docker Compose status could not be determined. "
-            "The pipeline will continue without managing Metabase."
-        )
-        return False
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            "Docker Compose status is unknown; publication was cancelled."
+        ) from exc
 
     running_services = {
         service.strip()
@@ -114,8 +170,8 @@ def create_database_backup() -> Path | None:
 
     BACKUP_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup_path = BACKUP_DIRECTORY / f"analytics_{timestamp}.duckdb"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    backup_path = BACKUP_DIRECTORY / f"{DATABASE_PATH.stem}_{timestamp}.duckdb"
 
     shutil.copyfile(DATABASE_PATH, backup_path)
 
@@ -190,12 +246,19 @@ def publish_staged_files() -> None:
 
         logging.info("Staged files published successfully.")
 
-    except Exception:
+    except BaseException:
         logging.exception("Database publication failed.")
 
         if database_replaced:
             if backup_path is not None and backup_path.exists():
-                shutil.copyfile(backup_path, DATABASE_PATH)
+                restore_path = DATABASE_PATH.with_name(
+                    f"{DATABASE_PATH.name}.restore"
+                )
+                try:
+                    shutil.copyfile(backup_path, restore_path)
+                    os.replace(restore_path, DATABASE_PATH)
+                finally:
+                    remove_file_if_present(restore_path)
                 logging.warning(
                     "Previous database restored from backup: %s",
                     backup_path,
@@ -213,7 +276,10 @@ def publish_staged_files() -> None:
         if metabase_was_running:
             logging.info("Restarting Metabase.")
             run_command(
-                ["docker", "compose", "start", METABASE_SERVICE]
+                [
+                    "docker", "compose", "start", "--wait",
+                    "--wait-timeout", "180", METABASE_SERVICE,
+                ]
             )
 
 def main() -> int:
@@ -226,51 +292,39 @@ def main() -> int:
 
     logging.info("Analytics refresh started.")
 
-    clean_staging_files()
-
-    pipeline_environment = os.environ.copy()
-    pipeline_environment["NYC_311_RAW_PATH"] = str(STAGED_RAW_PATH)
-    pipeline_environment["DUCKDB_PATH"] = str(STAGED_DATABASE_PATH)
-
-    dbt_executable = shutil.which("dbt")
-
-    if dbt_executable is None:
-        logging.error(
-            "The dbt executable was not found in the active environment."
-        )
-        return 1
-
     try:
-        run_command(
-            [sys.executable, "-m", "src.extract"],
-            pipeline_environment,
-        )
+        with exclusive_refresh_lock():
+            try:
+                is_metabase_running()
+                clean_staging_files()
 
-        run_command(
-            [sys.executable, "-m", "src.validate_raw"],
-            pipeline_environment,
-        )
+                pipeline_environment = os.environ.copy()
+                pipeline_environment["NYC_311_RAW_PATH"] = str(STAGED_RAW_PATH)
+                pipeline_environment["DUCKDB_PATH"] = str(STAGED_DATABASE_PATH)
 
-        run_command(
-            [sys.executable, "-m", "src.load"],
-            pipeline_environment,
-        )
+                dbt_executable = shutil.which("dbt")
+                if dbt_executable is None:
+                    raise RuntimeError("dbt was not found in the active environment.")
 
-        run_command(
-            [
-                dbt_executable,
-                "build",
-                "--profiles-dir",
-                ".",
-            ],
-            pipeline_environment,
-        )
-
-        publish_staged_files()
+                run_command(
+                    [sys.executable, "-m", "src.extract"], pipeline_environment
+                )
+                run_command(
+                    [sys.executable, "-m", "src.validate_raw"], pipeline_environment
+                )
+                run_command(
+                    [sys.executable, "-m", "src.load"], pipeline_environment
+                )
+                run_command(
+                    [dbt_executable, "build", "--profiles-dir", "."],
+                    pipeline_environment,
+                )
+                publish_staged_files()
+            finally:
+                clean_staging_files()
 
     except Exception:
         logging.exception("Analytics refresh failed.")
-        clean_staging_files()
         return 1
 
     logging.info("Analytics refresh completed successfully.")
