@@ -69,9 +69,11 @@ The local **NYC 311 Service Requests** dashboard has five views:
 4. **Top Complaint Types by Borough** — stacked category counts by borough.
 5. **Complaint Heatmap by Time of Day** — colored table of weekday and hour counts.
 
+![NYC 311 Service Requests dashboard](dashboard/screenshots/nyc_311_dashboard.png)
+
 Dashboard filters cover **Request Date** and **Borough**. The [dashboard guide](docs/dashboard-guide.md) explains their interpretation and the metric definitions.
 
-The dashboard, saved questions and filter connections currently exist in the local Metabase application volume. They are not recreated by cloning the repository; their definitions and a current dashboard screenshot still need to be exported and added. The analytical models and dashboard behavior were verified on the local instance.
+The dashboard, saved questions and filter connections currently exist in the local Metabase application volume. They are not recreated by cloning the repository; their definitions still need to be exported and added. The analytical models and dashboard behavior were verified on the local instance.
 
 ## Getting started
 
@@ -139,7 +141,7 @@ The [GitHub Actions workflow](.github/workflows/update-data.yml) runs weekly in 
 | Separate Metabase application volume | Preserve dashboard definitions across container restarts |
 | Great Expectations plus dbt tests | Validate the incoming file and the transformed models at different stages |
 
-The repository excludes local credentials, virtual environments, generated CSV and DuckDB files, backups, and Metabase application state. Metadata export and screenshot evidence are still needed to make the saved dashboard portable.
+The repository excludes local credentials, virtual environments, generated CSV and DuckDB files, backups, and Metabase application state. A metadata export is still needed to make the saved dashboard portable.
 
 ## Troubleshooting
 
