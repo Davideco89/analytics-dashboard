@@ -47,6 +47,29 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def failed_expectations(result: dict) -> list[str]:
+    failures = []
+
+    for entry in result.get("results", []):
+        if entry.get("success") is not False:
+            continue
+
+        config = entry.get("expectation_config") or {}
+        name = config.get("type") or config.get("expectation_type") or "unknown_expectation"
+        column = (config.get("kwargs") or {}).get("column")
+        label = f"{name}({column})" if column else name
+
+        details = entry.get("result") or {}
+        if "unexpected_count" in details:
+            label += f": unexpected_count={details['unexpected_count']}"
+        elif name == "expect_table_row_count_to_be_between" and "observed_value" in details:
+            label += f": observed_count={details['observed_value']}"
+
+        failures.append(label)
+
+    return failures
+
+
 def validate_raw() -> None:
     if not CSV_PATH.exists():
         raise FileNotFoundError(f"Source file not found: {CSV_PATH}")
@@ -126,7 +149,9 @@ def validate_raw() -> None:
     )
 
     if not validation_result.success:
-        raise RuntimeError("Great Expectations validation failed")
+        failures = failed_expectations(result)
+        detail = "; ".join(failures) if failures else "no failure details returned"
+        raise RuntimeError(f"Great Expectations validation failed: {detail}")
 
     logger.info(
         "Raw data validation completed successfully: %s rows",

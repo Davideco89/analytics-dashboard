@@ -43,3 +43,9 @@ models:
         description: Additive measure with a value of one for each request.
         data_tests:
           - not_null
+
+      - name: has_valid_borough
+        description: True when the borough is one of the five NYC boroughs; false for missing or unrecognized values.
+
+      - name: has_valid_coordinates
+        description: True when latitude and longitude fall within an approximate NYC bounding box (40.4 to 41.0, -74.3 to -73.6); false for missing or out-of-range values.

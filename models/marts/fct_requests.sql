@@ -51,15 +51,17 @@ enriched as (
             then date_diff('second', created_at, closed_at) / 3600.0
         end as resolution_hours,
 
-        (
-            borough is not null
-            and borough <> 'UNSPECIFIED'
-        ) as has_valid_borough,
+        coalesce((
+            borough in (
+                'BRONX', 'BROOKLYN', 'MANHATTAN',
+                'QUEENS', 'STATEN ISLAND'
+            )
+        ), false) as has_valid_borough,
 
-        (
-            latitude is not null
-            and longitude is not null
-        ) as has_valid_coordinates,
+        coalesce((
+            latitude between 40.4 and 41.0
+            and longitude between -74.3 and -73.6
+        ), false) as has_valid_coordinates,
 
         1 as request_count,
 
