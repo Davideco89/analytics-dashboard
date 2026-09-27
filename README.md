@@ -44,20 +44,16 @@ The project uses the [NYC 311 Service Requests dataset](https://data.cityofnewyo
 
 ## Verified results
 
-The September 25, 2026 **historical August 1–7 window** refresh produced:
+The September 27, 2026 local refresh selected **September 19–25, 2026** in New York local time (the upper bound, September 26 at 00:00, is excluded) and produced:
 
 | Check | Result |
 |---|---:|
-| Raw, staging and fact requests | 73,771 each |
-| Distinct complaint types | 154 |
-| Recognized borough | 73,695 |
-| Unspecified borough | 76 |
-| Coordinates in the approximate NYC rectangle | 72,404 |
-| Missing coordinates | 1,367 |
-| Present coordinates outside the rectangle | 0 |
+| Raw, staging and fact requests | 74,200 each |
+| Distinct complaint types | 157 |
+| Great Expectations validation | 7 passed, 0 failed |
 | dbt build | 20 passed, 0 warnings, 0 errors |
 
-The screenshot and these counts document the historical baseline, not expected values for a fresh rolling run. The API can revise existing requests; a rolling refresh also advances the reporting dates, so totals and resolution times will change.
+These counts and the screenshot below document this specific refresh; they are not fixed expected results. Each subsequent refresh selects a new seven-day window, so older dates leave the snapshot and newer dates enter it. The NYC 311 API can also revise requests already seen within the selected window. Therefore request counts, complaint types, chart values and resolution metrics may change even when a refresh completes successfully. A GitHub Actions run produces its own database artifact; updating the local Metabase dashboard requires a local refresh.
 
 ## Metabase dashboard
 
@@ -73,7 +69,7 @@ The local **NYC 311 Service Requests** dashboard has five views:
 
 Dashboard filters cover **Request Date** and **Borough**. The [dashboard guide](docs/dashboard-guide.md) links to five versioned SQL files in `dashboard/sql/` and provides the dimension join, visualization settings, filter connections, and complete query text needed to recreate the dashboard.
 
-The saved dashboard lives in the local Metabase application volume, which persists across container restarts. A fresh clone rebuilds the analytical data, then the [dashboard guide](docs/dashboard-guide.md) lets you recreate the five questions and their shared filters without that volume. The screenshot documents an earlier August window and will differ from new snapshots.
+The saved dashboard lives in the local Metabase application volume, which persists across container restarts. A fresh clone rebuilds the analytical data, then the [dashboard guide](docs/dashboard-guide.md) lets you recreate the five questions and their shared filters without that volume. The screenshot shows the September 19–25, 2026 local snapshot; its values will differ from later refreshes.
 
 ## Getting started
 

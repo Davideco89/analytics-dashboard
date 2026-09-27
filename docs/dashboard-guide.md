@@ -140,6 +140,6 @@ END
 
 The source complaint type is not a taxonomy shared by all agencies. `UNSPECIFIED` indicates an unknown or unassigned borough, not a sixth borough; only the top complaint card excludes it by design. Missing/invalid closing timestamps are excluded only from the resolution average. Coordinate quality flags exist in the fact model but are not global filters.
 
-The screenshot in `dashboard/screenshots/` records an August 1–7, 2026 historical run; a fresh rolling run covers seven New York calendar days with a one-day source-delivery buffer. A refresh on September 27 selects September 19–25, avoiding the source's partial September 26 records. Check the extraction log for its exact `[start, end)` window.
+The screenshot in `dashboard/screenshots/` records the September 19–25, 2026 local refresh. A rolling refresh covers seven New York calendar days with a one-day source-delivery buffer; the September 27 run excluded the source's partial September 26 records. Later refreshes will show different dates and may show revised requests within the selected window. Check the extraction log for the exact `[start, end)` window.
 
 Metabase Open Source stores saved cards, dashboard layout and filter connections in its separate local application volume. A fresh clone does not import that state; the SQL and configuration above recreate the five views without access to the original volume. Do not remove the application volume if you want to preserve your saved dashboard.
