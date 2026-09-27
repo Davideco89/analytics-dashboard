@@ -14,6 +14,6 @@ flowchart TD
 
 The lock at `data/database/.refresh.lock` prevents concurrent local runs. The Actions job sets `METABASE_MODE=headless` and validates only the generated analytical database. It uploads artifacts for inspection; there is no deployment path from the runner to the local Docker volume or DuckDB file.
 
-The Metabase application database is a **separate** state store in the Docker volume `analytics-dashboard_metabase_state`. The DuckDB backups do not back up saved questions, dashboards, users, or permissions. To preserve those Metabase objects, export their metadata or make a separate backup of the application volume. Do not publish a raw application-state backup: it may contain sensitive account information.
+The Metabase application database is a **separate** state store in the Docker volume `analytics-dashboard_metabase_state`. The DuckDB backups do not back up saved questions, dashboards, users, or permissions. Preserve those objects by backing up the application volume separately. Do not publish a raw application-state backup: it may contain sensitive account information.
 
 The configured extraction window is fixed to the first week of August 2026. A scheduled refresh can capture corrections to those records but will not extend the reporting period until the configuration and raw-data row-count bounds are reviewed and changed.

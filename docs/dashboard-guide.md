@@ -21,4 +21,4 @@ The dataset contains requests created from August 1 through August 7, 2026. A mi
 
 ## Reproducibility and access
 
-The dashboard was configured in a local Metabase instance. Saved questions, native SQL, filter connections, users, and subscriptions are stored in the Metabase application volume rather than this repository. A fresh clone builds the analytical tables but requires the dashboard to be recreated or its metadata to be imported after a suitable export is added. User-level permissions, subscriptions, and an export of dashboard definitions remain to be documented and verified on the local instance.
+The dashboard was configured in a local Metabase instance. Saved questions, native SQL, and filter connections are stored in the Metabase application volume rather than this repository. A fresh clone builds the analytical tables, but the dashboard must be recreated manually using the screenshot and this guide. Users, permissions, and subscriptions belong to each Metabase installation; they are outside the scope of this project.

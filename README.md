@@ -73,7 +73,7 @@ The local **NYC 311 Service Requests** dashboard has five views:
 
 Dashboard filters cover **Request Date** and **Borough**. The [dashboard guide](docs/dashboard-guide.md) explains their interpretation and the metric definitions.
 
-The dashboard, saved questions and filter connections currently exist in the local Metabase application volume. They are not recreated by cloning the repository; their definitions still need to be exported and added. The analytical models and dashboard behavior were verified on the local instance.
+The dashboard, saved questions and filter connections live in the local Metabase application volume, which persists across container restarts. A fresh clone rebuilds the analytical data but does not automatically recreate the dashboard; use the screenshot and [dashboard guide](docs/dashboard-guide.md) as a reference. The analytical models and dashboard behavior were verified on the local instance.
 
 ## Getting started
 
@@ -139,7 +139,7 @@ The [GitHub Actions workflow](.github/workflows/update-data.yml) runs weekly in 
 | Separate Metabase application volume | Preserve dashboard definitions across container restarts |
 | Great Expectations plus dbt tests | Validate the incoming file and the transformed models at different stages |
 
-The repository excludes local credentials, virtual environments, generated CSV and DuckDB files, backups, and Metabase application state. A metadata export is still needed to make the saved dashboard portable.
+The repository excludes local credentials, virtual environments, generated CSV and DuckDB files, backups, and Metabase application state. Metabase Open Source does not include the serialization feature for exporting and importing saved dashboards; the screenshot and guide document the dashboard delivered with this project.
 
 ## Troubleshooting
 
