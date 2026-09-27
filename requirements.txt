@@ -5,3 +5,4 @@ great-expectations==1.23.0
 pandas==3.0.5
 requests==2.34.2
 python-dotenv==1.2.3
+tzdata==2026.4

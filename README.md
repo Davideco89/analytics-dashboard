@@ -29,7 +29,7 @@ Dependencies are pinned in `requirements.txt`. Python 3.13 is the setup baseline
 
 ## Source and data model
 
-The project uses the [NYC 311 Service Requests dataset](https://data.cityofnewyork.us/d/erm2-nwe9). The extraction window is August 1–7, 2026: `created_date >= 2026-08-01T00:00:00` and `< 2026-08-08T00:00:00`. The API is paginated by creation timestamp and request key, and duplicate keys are rejected during extraction.
+The project uses the [NYC 311 Service Requests dataset](https://data.cityofnewyork.us/d/erm2-nwe9). By default each refresh replaces the snapshot with the **latest seven New York calendar days after a one-day source-delivery buffer**: `created_date >= start` and `< end`, where `end` is midnight at the start of yesterday in New York. A run on Sunday September 27, 2026 selects September 19 through September 25; the following Sunday selects September 26 through October 2. The source had published only 534 records through 02:06 on September 26 when checked on September 27, so treating the previous calendar day as complete created a false drop in the chart. `NYC_311_WINDOW_DAYS` changes the lookback (for example, `14`); `NYC_311_SOURCE_LAG_DAYS` changes the buffer (default `1`). Extraction rejects an evidently truncated final day before publishing any file: the latest event must reach 23:00 local time and its daily count must be at least one quarter of the median preceding daily count. This is a safeguard, not a guarantee of final source completeness. The API is paginated by creation timestamp and request key, and duplicate keys are rejected during extraction. Timestamps in the source and date overrides are treated as New York local time.
 
 | Model | Grain | Purpose |
 |---|---|---|
@@ -44,7 +44,7 @@ The project uses the [NYC 311 Service Requests dataset](https://data.cityofnewyo
 
 ## Verified results
 
-The September 25, 2026 local refresh produced:
+The September 25, 2026 **historical August 1–7 window** refresh produced:
 
 | Check | Result |
 |---|---:|
@@ -57,7 +57,7 @@ The September 25, 2026 local refresh produced:
 | Present coordinates outside the rectangle | 0 |
 | dbt build | 20 passed, 0 warnings, 0 errors |
 
-The API can update existing service requests, so counts and resolution times can change on later runs even when the date window stays fixed.
+The screenshot and these counts document the historical baseline, not expected values for a fresh rolling run. The API can revise existing requests; a rolling refresh also advances the reporting dates, so totals and resolution times will change.
 
 ## Metabase dashboard
 
@@ -71,9 +71,9 @@ The local **NYC 311 Service Requests** dashboard has five views:
 
 ![NYC 311 Service Requests dashboard](dashboard/screenshots/nyc_311_dashboard.png)
 
-Dashboard filters cover **Request Date** and **Borough**. The [dashboard guide](docs/dashboard-guide.md) explains their interpretation and the metric definitions.
+Dashboard filters cover **Request Date** and **Borough**. The [dashboard guide](docs/dashboard-guide.md) links to five versioned SQL files in `dashboard/sql/` and provides the dimension join, visualization settings, filter connections, and complete query text needed to recreate the dashboard.
 
-The dashboard, saved questions and filter connections live in the local Metabase application volume, which persists across container restarts. A fresh clone rebuilds the analytical data but does not automatically recreate the dashboard; use the screenshot and [dashboard guide](docs/dashboard-guide.md) as a reference. The analytical models and dashboard behavior were verified on the local instance.
+The saved dashboard lives in the local Metabase application volume, which persists across container restarts. A fresh clone rebuilds the analytical data, then the [dashboard guide](docs/dashboard-guide.md) lets you recreate the five questions and their shared filters without that volume. The screenshot documents an earlier August window and will differ from new snapshots.
 
 ## Getting started
 
@@ -107,7 +107,7 @@ python scripts/update_data.py
 docker compose up -d --wait metabase
 ```
 
-Both setup scripts create `.venv`, copy `.env.example` to `.env` only if needed, install dependencies, run the environment and offline Python tests, and check the Compose configuration. They do not download NYC data, build the Metabase image or start a container; the remaining commands do those jobs explicitly. An existing virtual environment with a Python version other than 3.13 causes setup to stop rather than replacing it.
+Both setup scripts create `.venv`, copy `.env.example` to `.env` only if needed, install dependencies, run the environment and offline Python tests, and check the Compose configuration. They do not download NYC data, build the Metabase image or start a container; the remaining commands do those jobs explicitly. An existing virtual environment with a Python version other than 3.13 causes setup to stop rather than replacing it. The `tzdata` dependency supplies the New York time zone on systems without a system time zone database, including Windows.
 
 Open [http://localhost:3000](http://localhost:3000) and add a DuckDB database with file path `/home/metabase/data/analytics.duckdb`. Compose mounts the analytical database directory read-only inside Metabase and exposes port 3000 only on localhost. Saved Metabase configuration uses a separate Docker volume; do not remove that volume when stopping the project.
 
@@ -127,19 +127,21 @@ python scripts/update_data.py
 
 The refresh runs seven Great Expectations checks and `dbt build` (three models and 17 dbt tests), creates a database backup when replacing an existing database, and verifies raw, staging and fact row counts after publication. A lock prevents concurrent local refresh processes.
 
-The [GitHub Actions workflow](.github/workflows/update-data.yml) runs weekly in headless mode and uploads the generated CSV, database and dbt artifacts. Its result is a separate runner artifact: the workflow does not replace the database in the local Metabase instance. The configured date window is fixed, so weekly runs update the same week's snapshot rather than append new weeks.
+**Existing clones:** setup scripts never overwrite `.env`. If it still contains `NYC_311_START_DATE=2026-08-01T00:00:00` and `NYC_311_END_DATE=2026-08-08T00:00:00`, remove or comment out **both** lines; also change `NYC_311_MIN_ROWS` to `1000` and `NYC_311_MAX_ROWS` to `250000`. `NYC_311_SOURCE_LAG_DAYS` defaults to `1` even when omitted from an older `.env`. Check the extraction log for the selected window. For a deliberate historical replay, set **both** date overrides to New York local timestamps; either override alone fails. The default bounds are broad sanity checks for a seven-day slice, not fixed expected counts; adjust them after examining a different window or a changed source. The live database is fully rebuilt, so it contains the current window rather than appended history.
+
+The [GitHub Actions workflow](.github/workflows/update-data.yml) runs Sundays at 16:00 UTC (after the observed source delivery delay) in headless mode and uploads the generated CSV, database and dbt artifacts. Each run selects the latest seven buffered New York days and fails rather than publishing an obviously partial final day. Its result is a separate runner artifact: the workflow does not replace the database in your local Metabase instance. Run `python scripts/update_data.py` locally to update the dashboard you see on your machine.
 
 ## Implementation decisions
 
 | Decision | Reason |
 |---|---|
 | dbt staging view and materialized marts | Keep cleaning and analytical measures in separately testable layers |
-| Full replacement of a fixed date window | Capture corrections to existing requests without duplicate append behavior |
+| Full replacement of a rolling date window | Include new days and corrections to recent requests without duplicate append behavior |
 | Staged database and backup before publication | Keep the previous analytical database available if a refresh fails |
 | Separate Metabase application volume | Preserve dashboard definitions across container restarts |
 | Great Expectations plus dbt tests | Validate the incoming file and the transformed models at different stages |
 
-The repository excludes local credentials, virtual environments, generated CSV and DuckDB files, backups, and Metabase application state. Metabase Open Source does not include the serialization feature for exporting and importing saved dashboards; the screenshot and guide document the dashboard delivered with this project.
+The repository excludes local credentials, virtual environments, generated CSV and DuckDB files, backups, and Metabase application state. Metabase Open Source does not include the serialization feature for exporting and importing saved dashboards; the versioned SQL files and guide contain the queries and filter wiring needed to rebuild the delivered dashboard.
 
 ## Troubleshooting
 
@@ -149,7 +151,7 @@ Windows may expose Python through `py` rather than `python`. Create the environm
 
 ### A Metabase Request Date filter shows no results
 
-The source covers only August 1–7, 2026. Check that the selected date falls in this range. If you recreated a saved question, also check that the dashboard filter is mapped to the fact's `request_date` field.
+Check the selected extraction window in the latest refresh log; a rolling run replaces the previous week. For a recreated question, map the dashboard filter to the fact's `request_date` field as described in the [dashboard guide](docs/dashboard-guide.md). An old `.env` with both August date overrides will keep selecting that historical week until you remove them.
 
 ## Credits and acknowledgements
 

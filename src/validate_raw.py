@@ -14,8 +14,8 @@ load_dotenv()
 CSV_PATH = Path(
     os.getenv("NYC_311_RAW_PATH", "data/raw/nyc_311.csv")
 )
-MIN_ROW_COUNT = int(os.getenv("NYC_311_MIN_ROWS", "50000"))
-MAX_ROW_COUNT = int(os.getenv("NYC_311_MAX_ROWS", "100000"))
+MIN_ROW_COUNT = int(os.getenv("NYC_311_MIN_ROWS", "1000"))
+MAX_ROW_COUNT = int(os.getenv("NYC_311_MAX_ROWS", "250000"))
 
 EXPECTED_COLUMNS = [
     "unique_key",

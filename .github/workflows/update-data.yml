@@ -3,8 +3,8 @@ name: Refresh analytics data
 on:
   workflow_dispatch:
   schedule:
-    # Every Sunday at 04:00 UTC.
-    - cron: "0 4 * * 0"
+    # Every Sunday at 16:00 UTC; the previous Friday is the latest included day.
+    - cron: "0 16 * * 0"
 
 permissions:
   contents: read
@@ -21,11 +21,11 @@ jobs:
 
     env:
       NYC_311_API_URL: https://data.cityofnewyork.us/resource/erm2-nwe9.json
-      NYC_311_START_DATE: "2026-08-01T00:00:00"
-      NYC_311_END_DATE: "2026-08-08T00:00:00"
+      NYC_311_WINDOW_DAYS: "7"
+      NYC_311_SOURCE_LAG_DAYS: "1"
       NYC_311_PAGE_SIZE: "10000"
-      NYC_311_MIN_ROWS: "50000"
-      NYC_311_MAX_ROWS: "100000"
+      NYC_311_MIN_ROWS: "1000"
+      NYC_311_MAX_ROWS: "250000"
       METABASE_MODE: headless
       SODA_APP_TOKEN: ${{ secrets.SODA_APP_TOKEN }}
 
